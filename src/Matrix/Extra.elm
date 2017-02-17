@@ -6,7 +6,6 @@ module Matrix.Extra
         , (.*)
         , power
         , (.^)
-        , prettyPrint
         , neighbours
         , diagonals
         , indexedNeighbours
@@ -24,15 +23,9 @@ module Matrix.Extra
 # Interacting with other cells
 @docs neighbours, indexedNeighbours, diagonals, neighboursFour
 
-@docs prettyPrint
-
 -}
 
 import Matrix exposing (Matrix, map2, get, getRow, height, width)
-import Array exposing (fromList, toList)
-import Html exposing (Html, table, tr, td)
-import Html.Attributes exposing (style)
-import Element exposing (show, toHtml)
 
 
 -- Helper function for unpacking lists
@@ -51,35 +44,6 @@ unpackMaybeList fn ls =
         )
         []
         ls
-
-
-{-|
-Print out a matrix into a table
--}
-prettyPrint : Matrix a -> Html msg
-prettyPrint matrix =
-    let
-        printXIndex =
-            tr [] (td [ style [ ( "background-color", "black" ) ] ] [] :: List.map printXCell (List.range 0 ((width matrix) - 1)))
-
-        printXCell cell =
-            td [ style [ ( "border", "1px solid black" ), ( "background-color", "#A8A8F5" ) ] ] <|
-                [ toHtml <| show cell ]
-
-        printCell cell =
-            td [ style [ ( "border", "1px solid black" ) ] ] <|
-                [ toHtml <| show cell ]
-
-        printRow i row =
-            tr [] <|
-                (printXCell i)
-                    :: (Array.toList <| Array.map printCell row)
-    in
-        table [] <|
-            printXIndex
-                :: (List.indexedMap printRow <|
-                        unpackMaybeList (\i -> getRow i matrix) (List.range 0 ((height matrix) - 1))
-                   )
 
 
 {-|

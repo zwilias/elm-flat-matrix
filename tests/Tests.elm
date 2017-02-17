@@ -1,12 +1,10 @@
 module Tests exposing (..)
 
-import Element exposing (..)
 import Test exposing (test, Test, describe)
 import Expect exposing (equal)
 import Array
 import Matrix
 import Matrix.Extra
-import Html exposing (Html)
 
 
 unpackMaybeSize : List (List a) -> ( Int, Int )
