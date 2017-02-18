@@ -11,6 +11,7 @@
         "Matrix.Extra"
     ],
     "dependencies": {
+        "Skinney/elm-array-exploration": "2.0.2 <= v < 3.0.0",
         "elm-lang/core": "5.0.0 <= v < 6.0.0"
     },
     "elm-version": "0.18.0 <= v < 0.19.0"

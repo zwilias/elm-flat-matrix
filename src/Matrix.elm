@@ -4,6 +4,7 @@ module Matrix
         , height
         , width
         , repeat
+        , size
         , fromList
         , get
         , getRow
@@ -30,7 +31,7 @@ Internally it uses a flat array for speed reasons.
 
 # Creating a matrix
 
-@docs repeat, fromList, empty
+@docs initialize, repeat, fromList, empty
 
 # Get matrix dimensions
 
@@ -52,38 +53,49 @@ Internally it uses a flat array for speed reasons.
 @docs filter, map, map2, indexedMap, toIndexedArray
 -}
 
-import Array exposing (Array)
+import Array.Hamt as Array exposing (Array)
 import List
 
 
 {-|
   Matrix a has a given size, and data contained within
 -}
-type alias Matrix a =
-    { size : ( Int, Int )
-    , data : Array a
-    }
+type Matrix a
+    = Matrix
+        { size : ( Int, Int )
+        , data : Array a
+        }
 
 
 {-| Create an empty matrix
 -}
 empty : Matrix a
 empty =
-    { size = ( 0, 0 ), data = Array.empty }
+    Matrix { size = ( 0, 0 ), data = Array.empty }
 
 
 {-| Width of a given matrix
 -}
 width : Matrix a -> Int
 width matrix =
-    Tuple.first matrix.size
+    Tuple.first <| size matrix
 
 
 {-| Height of a given matrix
 -}
 height : Matrix a -> Int
 height matrix =
-    Tuple.second matrix.size
+    Tuple.second <| size matrix
+
+
+size : Matrix a -> ( Int, Int )
+size (Matrix matrix) =
+    matrix.size
+
+
+toArray : Matrix a -> Array a
+toArray (Matrix matrix) =
+    matrix.data
 
 
 {-|
@@ -91,9 +103,25 @@ height matrix =
 -}
 repeat : Int -> Int -> a -> Matrix a
 repeat x y v =
-    { size = ( x, y )
-    , data = Array.repeat (x * y) v
-    }
+    Matrix
+        { size = ( x, y )
+        , data = Array.repeat (x * y) v
+        }
+
+
+initialize : Int -> Int -> (Int -> Int -> a) -> Matrix a
+initialize x y initializer =
+    let
+        arrayInit : Int -> a
+        arrayInit pos =
+            initializer
+                (pos // x)
+                (pos % x)
+    in
+        Matrix
+            { size = ( x, y )
+            , data = Array.initialize (x * y) arrayInit
+            }
 
 
 {-|
@@ -131,7 +159,9 @@ fromList list =
         if not allSame then
             Nothing
         else
-            Just { size = ( width, height ), data = Array.fromList <| List.concat list }
+            Just <|
+                Matrix
+                    { size = ( width, height ), data = Array.fromList <| List.concat list }
 
 
 {-|
@@ -145,7 +175,7 @@ get i j matrix =
             (j * (width matrix)) + i
     in
         if (i < width matrix && i > -1) && (j < height matrix && j > -1) then
-            Array.get pos matrix.data
+            Array.get pos <| toArray matrix
         else
             Nothing
 
@@ -164,7 +194,7 @@ getRow j matrix =
         if end > ((width matrix) * (height matrix)) then
             Nothing
         else
-            Just <| Array.slice start end matrix.data
+            Just <| Array.slice start end <| toArray matrix
 
 
 {-| Get a row at a given i
@@ -172,23 +202,23 @@ getRow j matrix =
 getColumn : Int -> Matrix a -> Maybe (Array a)
 getColumn i matrix =
     let
-        width =
-            Tuple.first matrix.size
+        mWidth =
+            width matrix
 
-        height =
-            Tuple.second matrix.size
+        mHeight =
+            height matrix
 
         indices =
-            List.map (\x -> x * width + i) (List.range 0 (height - 1))
+            List.map (\x -> x * mWidth + i) (List.range 0 (mHeight - 1))
     in
-        if i >= width then
+        if i >= mWidth then
             Nothing
         else
             Just <|
                 Array.fromList <|
                     List.foldl
                         (\index ls ->
-                            case Array.get index matrix.data of
+                            case Array.get index <| toArray matrix of
                                 Just v ->
                                     ls ++ [ v ]
 
@@ -205,23 +235,23 @@ concatHorizontal : Matrix a -> Matrix a -> Maybe (Matrix a)
 concatHorizontal a b =
     let
         finalWidth =
-            Tuple.first a.size + Tuple.first b.size
+            width a + width b
 
         insert i xs array =
             Array.append
                 (Array.append (Array.slice 0 i array) xs)
                 (Array.slice i (Array.length array) array)
     in
-        if Tuple.second a.size /= Tuple.second b.size then
+        if height a /= height b then
             Nothing
         else
             Just <|
-                { a
-                    | size = ( finalWidth, Tuple.second a.size )
+                Matrix
+                    { size = ( finalWidth, height a )
                     , data =
                         List.foldl
                             (\( i, xs ) acc -> insert (i * finalWidth) xs acc)
-                            b.data
+                            (toArray b)
                         <|
                             List.foldl
                                 (\i ls ->
@@ -233,18 +263,22 @@ concatHorizontal a b =
                                             ls
                                 )
                                 []
-                                (List.range 0 ((Tuple.second a.size) - 1))
-                }
+                                (List.range 0 (height a - 1))
+                    }
 
 
 {-| Append a matrix to another matrix vertically and return the result. Return Nothing if the widths don't match
 -}
 concatVertical : Matrix a -> Matrix a -> Maybe (Matrix a)
 concatVertical a b =
-    if Tuple.first a.size /= Tuple.first b.size then
+    if width a /= width b then
         Nothing
     else
-        Just <| { a | size = ( Tuple.first a.size, Tuple.second a.size + Tuple.second b.size ), data = Array.append a.data b.data }
+        Just <|
+            Matrix
+                { size = ( width a, height a + height b )
+                , data = Array.append (toArray a) (toArray b)
+                }
 
 
 {-|
@@ -255,10 +289,13 @@ set : Int -> Int -> a -> Matrix a -> Matrix a
 set i j v matrix =
     let
         pos =
-            (j * Tuple.first matrix.size) + i
+            (j * width matrix) + i
     in
         if (i < width matrix && i > -1) && (j < height matrix && j > -1) then
-            { matrix | data = Array.set pos v matrix.data }
+            Matrix
+                { size = size matrix
+                , data = Array.set pos v <| toArray matrix
+                }
         else
             matrix
 
@@ -282,15 +319,32 @@ update x y f matrix =
 -}
 map : (a -> b) -> Matrix a -> Matrix b
 map f matrix =
-    { matrix | data = Array.map f matrix.data }
+    Matrix
+        { size = size matrix
+        , data = Array.map f <| toArray matrix
+        }
+
+
+foldl : (a -> b -> b) -> b -> Matrix a -> b
+foldl op acc matrix =
+    Array.foldl op acc <| toArray matrix
+
+
+foldr : (a -> b -> b) -> b -> Matrix a -> b
+foldr op acc matrix =
+    Array.foldr op acc <| toArray matrix
 
 
 {-| Apply a function to two matricies at once
 -}
 map2 : (a -> b -> c) -> Matrix a -> Matrix b -> Maybe (Matrix c)
 map2 f a b =
-    if a.size == b.size then
-        Just { a | data = Array.fromList <| List.map2 f (Array.toList a.data) (Array.toList b.data) }
+    if size a == size b then
+        Just <|
+            Matrix
+                { size = size a
+                , data = Array.fromList <| List.map2 f (Array.toList <| toArray a) (Array.toList <| toArray b)
+                }
     else
         Nothing
 
@@ -311,7 +365,10 @@ indexedMap f matrix =
             in
                 f x y v
     in
-        { matrix | data = Array.fromList <| List.indexedMap f_ <| Array.toList matrix.data }
+        Matrix
+            { size = size matrix
+            , data = Array.indexedMap f_ <| toArray matrix
+            }
 
 
 {-|
@@ -319,11 +376,12 @@ indexedMap f matrix =
 -}
 filter : (a -> Bool) -> Matrix a -> Array a
 filter f matrix =
-    Array.filter f matrix.data
+    Array.filter f <| toArray matrix
 
 
 {-| Convert a matrix to an indexed array
 -}
 toIndexedArray : Matrix a -> Array ( ( Int, Int ), a )
 toIndexedArray matrix =
-    (indexedMap (\x y v -> ( ( x, y ), v )) matrix).data
+    indexedMap (\x y v -> ( ( x, y ), v )) matrix
+        |> toArray

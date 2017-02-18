@@ -1,20 +1,21 @@
 module Tests exposing (..)
 
 import Test exposing (test, Test, describe)
-import Expect exposing (equal)
-import Array
+import Expect exposing (equal, true, false)
+import Array.Hamt as Array
 import Matrix
 import Matrix.Extra
 
 
 unpackMaybeSize : List (List a) -> ( Int, Int )
 unpackMaybeSize ls =
-    case Matrix.fromList ls of
-        Just m ->
-            m.size
+    Maybe.map Matrix.size (Matrix.fromList ls)
+        |> Maybe.withDefault ( -1, -1 )
 
-        Nothing ->
-            ( -1, -1 )
+
+isJust : Maybe a -> Bool
+isJust =
+    (/=) Nothing
 
 
 
@@ -39,12 +40,8 @@ fromList =
         , test "Non-consistent size" <|
             \() ->
                 equal False <|
-                    case Matrix.fromList [ [ 1, 1, 1 ], [ 1, 1, 1, 5 ] ] of
-                        Just v ->
-                            True
-
-                        Nothing ->
-                            False
+                    isJust <|
+                        Matrix.fromList [ [ 1, 1, 1 ], [ 1, 1, 1, 5 ] ]
         ]
 
 
@@ -54,12 +51,12 @@ repeat =
         [ test "equal size" <|
             \() ->
                 equal ( 2, 2 ) <|
-                    (\z -> z.size) <|
+                    Matrix.size <|
                         Matrix.repeat 2 2 1
         , test "inequal size" <|
             \() ->
                 equal ( 2, 3 ) <|
-                    (\z -> z.size) <|
+                    Matrix.size <|
                         Matrix.repeat 2 3 1
         , test "inequal size matrix fromList 2x3" <|
             \() ->
@@ -68,7 +65,7 @@ repeat =
         , test "inequal size with 1, 100" <|
             \() ->
                 equal ( 1, 100 ) <|
-                    (\z -> z.size) <|
+                    Matrix.size <|
                         Matrix.repeat 1 100 1
         ]
 
@@ -247,7 +244,7 @@ set =
                             Matrix.repeat 5 3 1
         , test "Set outside of range does not change size" <|
             \() ->
-                (\x -> equal ( 1, 1 ) x.size) <|
+                (\x -> equal ( 1, 1 ) (Matrix.size x)) <|
                     Matrix.set 5 5 1 <|
                         Matrix.repeat 1 1 1
         , test "Set with negative index does nothing" <|
